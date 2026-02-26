@@ -34,16 +34,19 @@
 - [x] Rule Engine ↔ DSL bridge (GridReasoner: grid → logical facts)
 - [ ] Abstraction (DreamCoder-style): comprimer les programmes en bibliotheques
 
-## Chantier 3 — Graphe de Connaissances
+## Chantier 3 — Graphe de Connaissances (COMPLET)
 - [x] KnowledgeGraph (nodes, edges, index)
 - [x] BFS pathfinding
 - [x] Triple query (source, relation, target)
 - [x] Anti-unification (generalization)
 - [x] Structure Mapping (analogie)
-- [ ] Serialization/persistence (bincode ou SQLite)
-- [ ] Decay temporel (oubli actif)
-- [ ] Inference : graph → rules (apprentissage de regles depuis le graphe)
-- [ ] Embedding symbolique (graph → vector pour search rapide)
+- [x] JSON persistence (save/load GraphSnapshot, TermSer for serializable terms)
+- [x] Temporal decay (weight decay by age, access boost, configurable DecayConfig)
+- [x] Auto-pruning (remove nodes/edges below weight threshold)
+- [x] Graph inference (extract chain + shared-target patterns, infer rules with confidence)
+- [x] Symbolic embedding (node → vector: label, degree, weight, access, relation distribution)
+- [x] Subgraph embedding (BFS radius aggregation)
+- [x] Cosine similarity + find_similar_nodes(top_k)
 
 ## Chantier 4 — Auto-Amelioration
 - [x] Fitness score composite
