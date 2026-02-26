@@ -410,7 +410,12 @@ fn demo_arc_benchmark(data_dir: &str) {
     println!("\n--- ARC-AGI Real Benchmark ---");
     use koloss_v2::bench::runner::run_benchmark;
 
-    // Run on first 50 tasks for demo (full 400 can be run separately)
-    let report = run_benchmark(data_dir, Some(50), 3);
+    // Run on first 100 tasks
+    let report = run_benchmark(data_dir, Some(100), 3);
     report.print_summary();
+    for t in &report.per_task {
+        if t.solved {
+            println!("  [OK] {} method={} time={}ms", t.task_id, t.method, t.elapsed_ms);
+        }
+    }
 }

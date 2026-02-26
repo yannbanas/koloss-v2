@@ -7,3 +7,6 @@ pub mod fingerprint;
 pub mod heuristics;
 pub mod bidir;
 pub mod compression;
+pub mod smart_prims;
+pub mod adaptive;
+pub mod cellular;
