@@ -1,1 +1,6 @@
-/target\nCargo.lock\n*.swp\n*.swo\n*~\n.DS_Store
+/target
+Cargo.lock
+*.swp
+*.swo
+*~
+.DS_Store

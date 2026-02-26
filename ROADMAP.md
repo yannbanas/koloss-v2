@@ -21,16 +21,18 @@
 - [x] Cut (!) pour optimiser la recherche + propagation correcte
 - [x] Tabling/memoization (per-functor, hash-based cache)
 
-## Chantier 2 — ARC-AGI Program Synthesis
-- [x] DSL de 20+ primitives (rotate, flip, filter, gravity, etc.)
+## Chantier 2 — ARC-AGI Program Synthesis (EN COURS)
+- [x] DSL de 177 primitives (rotate, flip, filter, gravity, flood_fill, mirror, repeat, invert, etc.)
 - [x] Enumeration bottom-up (taille 1, 2, 3)
 - [x] Evolution genetique (crossover, mutation, selection)
 - [x] ARC task loader (JSON)
-- [ ] Primitives avancees (connected components, flood fill, symmetry detect)
+- [x] Connected components (4-conn + 8-conn), flood fill
+- [x] Object detection (extract, count, bounding box, center, area)
+- [x] Raisonnement spatial (above, below, left_of, right_of, adjacent, inside, overlap, distance)
+- [x] Symmetry detection (horizontal, vertical, diagonal) + period detection (H/V)
+- [x] Grid overlay, keep largest/smallest, outline, fill inside holes
+- [x] Rule Engine ↔ DSL bridge (GridReasoner: grid → logical facts)
 - [ ] Abstraction (DreamCoder-style): comprimer les programmes en bibliotheques
-- [ ] Object detection dans les grilles (segmentation par couleur/forme)
-- [ ] Raisonnement spatial (above, below, inside, adjacent)
-- [ ] Integration avec le Rule Engine (regles apprises → primitives)
 
 ## Chantier 3 — Graphe de Connaissances
 - [x] KnowledgeGraph (nodes, edges, index)
@@ -74,7 +76,7 @@
 
 | Metrique | Actuel | Cible v2.1 | Cible v2.5 | Cible v3.0 |
 |----------|--------|------------|------------|------------|
-| Lignes code | 3500 | 8000 | 15000 | <100K |
+| Lignes code | 4500 | 8000 | 15000 | <100K |
 | ARC-AGI score | 0% | 15% | 40% | 60% |
 | Warnings | 0 | 0 | 0 | 0 |
 | LLM dependency | 0% | 5% (NLU) | 5% | 5% |

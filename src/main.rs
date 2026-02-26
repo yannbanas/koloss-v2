@@ -297,17 +297,62 @@ fn demo_knowledge_graph() {
 
 fn demo_arc_dsl() {
     println!("\n--- ARC DSL ---");
+    use koloss_v2::synthesis::dsl::{connected_components, count_objects, is_above, is_symmetric_h,
+        detect_period_h, overlay_grids, unique_colors};
+
     let grid = vec![
-        vec![0, 1, 0],
-        vec![1, 0, 1],
-        vec![0, 1, 0],
+        vec![0, 1, 0, 0, 2, 0],
+        vec![0, 1, 0, 0, 2, 0],
+        vec![0, 0, 0, 0, 0, 0],
+        vec![0, 0, 3, 3, 0, 0],
+        vec![0, 0, 3, 3, 0, 0],
     ];
 
-    let rotated = Prim::RotateCW.apply(&grid);
-    let flipped = Prim::FlipH.apply(&grid);
+    println!("  input: {}x{}", grid.len(), grid[0].len());
+    println!("  colors: {:?}", unique_colors(&grid));
+    println!("  objects: {}", count_objects(&grid));
 
-    println!("  input: {:?}", grid);
-    println!("  rotate_cw: {:?}", rotated);
-    println!("  flip_h: {:?}", flipped);
+    let objects = connected_components(&grid, true);
+    for (i, obj) in objects.iter().enumerate() {
+        println!("    obj[{}]: color={} area={} bbox={:?}", i, obj.color, obj.area(), obj.bounding_box());
+    }
+
+    if objects.len() >= 3 {
+        println!("  obj[0] above obj[2]? {}", is_above(&objects[0], &objects[2]));
+    }
+
+    // Flood fill
+    let filled = Prim::FloodFill(0, 0, 5).apply(&grid);
+    let fill_count = filled.iter().flat_map(|r| r.iter()).filter(|&&c| c == 5).count();
+    println!("  flood_fill(0,0,5): {} cells filled", fill_count);
+
+    // Symmetry
+    let sym_grid = vec![vec![1, 0, 1], vec![0, 1, 0], vec![1, 0, 1]];
+    println!("  symmetric_h([[1,0,1],...]): {}", is_symmetric_h(&sym_grid));
+
+    // Pattern repetition
+    let rep_grid = vec![vec![1, 2, 1, 2, 1, 2]];
+    println!("  period_h([[1,2,1,2,1,2]]): {:?}", detect_period_h(&rep_grid));
+
+    // Overlay
+    let base = vec![vec![1, 1], vec![1, 1]];
+    let top = vec![vec![0, 2], vec![2, 0]];
+    let merged = overlay_grids(&base, &top);
+    println!("  overlay: {:?}", merged);
+
+    // Keep largest
+    let largest = Prim::KeepLargestObject.apply(&grid);
+    let largest_count = largest.iter().flat_map(|r| r.iter()).filter(|&&c| c != 0).count();
+    println!("  keep_largest: {} cells", largest_count);
+
+    // Fill inside
+    let hollow = vec![
+        vec![1, 1, 1],
+        vec![1, 0, 1],
+        vec![1, 1, 1],
+    ];
+    let filled_inside = Prim::FillInsideObjects(2).apply(&hollow);
+    println!("  fill_inside hollow square: center={}", filled_inside[1][1]);
+
     println!("  {} primitives available", Prim::all_primitives().len());
 }
