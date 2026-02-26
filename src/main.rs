@@ -1,18 +1,9 @@
-mod core;
-mod reasoning;
-mod synthesis;
-mod memory;
-mod perception;
-mod self_improve;
-mod bench;
-mod net;
-
-use crate::core::{Term, SymbolTable};
-use crate::reasoning::unifier::{Substitution, unify};
-use crate::reasoning::solver::{SatProblem, SatResult};
-use crate::reasoning::rules::{Rule, RuleEngine};
-use crate::memory::graph::KnowledgeGraph;
-use crate::synthesis::dsl::Prim;
+use koloss_v2::core::{Term, SymbolTable};
+use koloss_v2::reasoning::unifier::{Substitution, unify};
+use koloss_v2::reasoning::solver::{SatProblem, SatResult};
+use koloss_v2::reasoning::rules::{Rule, RuleEngine};
+use koloss_v2::memory::graph::KnowledgeGraph;
+use koloss_v2::synthesis::dsl::Prim;
 
 fn main() {
     println!("KOLOSS v2 — Autonomous Reasoning Engine");

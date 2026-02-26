@@ -3,6 +3,16 @@ name = "koloss-v2"
 version = "0.1.0"
 edition = "2021"
 description = "KOLOSS v2 — Autonomous reasoning engine. No LLM for core intelligence."
+repository = "https://github.com/yannbanas/koloss-v2"
+license = "MIT"
+
+[lib]
+name = "koloss_v2"
+path = "src/lib.rs"
+
+[[bin]]
+name = "koloss-v2"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"

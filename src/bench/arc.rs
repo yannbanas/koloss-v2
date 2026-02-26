@@ -1,4 +1,4 @@
-use crate::perception::grid::{ArcTask, ArcExample};
+use crate::perception::grid::ArcTask;
 use crate::synthesis::dsl::Grid;
 use crate::synthesis::enumerate::synthesize;
 use crate::synthesis::evolve::evolve;
