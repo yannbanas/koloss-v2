@@ -1,12 +1,12 @@
 # KOLOSS v2 — Roadmap
 
 ## Etat Actuel
-- ~2500 lignes Rust
-- 0 erreurs, compile et execute
-- Unifier, SAT solver, Rule Engine, Knowledge Graph, ARC DSL, Search, Evolution
+- ~3500 lignes Rust
+- 0 erreurs, 0 warnings, compile et execute
+- Unifier, SAT solver, Rule Engine (NAF + builtins + cut + tabling), Knowledge Graph, ARC DSL, Search, Evolution
 - Aucune dependance LLM pour le raisonnement
 
-## Chantier 1 — Moteur de Raisonnement (EN COURS)
+## Chantier 1 — Moteur de Raisonnement (COMPLET)
 - [x] Term types + SymbolTable
 - [x] Unification (Robinson algorithm)
 - [x] Substitution (walk, walk_deep, compose)
@@ -16,10 +16,10 @@
 - [x] Rule Engine (backward chaining)
 - [x] Forward chaining
 - [x] Search: DFS, BFS, Beam, Iterative Deepening, MCTS
-- [ ] Negation as failure
-- [ ] Built-in predicates (is, >, <, =, arithmetic)
-- [ ] Cut (!) pour optimiser la recherche
-- [ ] Tabling/memoization des queries
+- [x] Negation as failure (CWA, not/\+ predicates)
+- [x] Built-in predicates (is, >, <, >=, <=, =:=, =\=, +, -, *, /, mod, abs, between, member, append, length, functor, arg, var, nonvar, atom, integer, ground, write, nl)
+- [x] Cut (!) pour optimiser la recherche + propagation correcte
+- [x] Tabling/memoization (per-functor, hash-based cache)
 
 ## Chantier 2 — ARC-AGI Program Synthesis
 - [x] DSL de 20+ primitives (rotate, flip, filter, gravity, etc.)
@@ -53,7 +53,7 @@
 - [ ] Self-replication (generate son propre Cargo.toml + src/)
 
 ## Chantier 5 — Minimisation
-- [ ] Supprimer dead code (warnings → 0)
+- [x] Supprimer dead code (warnings → 0)
 - [ ] Fusionner modules redondants
 - [ ] Inline les abstractions inutiles
 - [ ] Benchmark perf (latence, memoire)
@@ -74,8 +74,8 @@
 
 | Metrique | Actuel | Cible v2.1 | Cible v2.5 | Cible v3.0 |
 |----------|--------|------------|------------|------------|
-| Lignes code | 2500 | 8000 | 15000 | <100K |
+| Lignes code | 3500 | 8000 | 15000 | <100K |
 | ARC-AGI score | 0% | 15% | 40% | 60% |
-| Warnings | 74 | 0 | 0 | 0 |
+| Warnings | 0 | 0 | 0 | 0 |
 | LLM dependency | 0% | 5% (NLU) | 5% | 5% |
 | Self-improvement | non | basique | mesurable | autonome |

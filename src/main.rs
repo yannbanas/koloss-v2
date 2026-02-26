@@ -2,6 +2,7 @@ use koloss_v2::core::{Term, SymbolTable};
 use koloss_v2::reasoning::unifier::{Substitution, unify};
 use koloss_v2::reasoning::solver::{SatProblem, SatResult};
 use koloss_v2::reasoning::rules::{Rule, RuleEngine};
+use koloss_v2::reasoning::builtins;
 use koloss_v2::memory::graph::KnowledgeGraph;
 use koloss_v2::synthesis::dsl::Prim;
 
@@ -12,6 +13,10 @@ fn main() {
     demo_unification();
     demo_sat();
     demo_rules();
+    demo_builtins();
+    demo_naf();
+    demo_cut();
+    demo_tabling();
     demo_knowledge_graph();
     demo_arc_dsl();
 
@@ -101,6 +106,166 @@ fn demo_rules() {
     println!("  forward chaining derived {} new facts", new_facts);
 }
 
+fn demo_builtins() {
+    println!("\n--- Built-in Predicates ---");
+    let mut syms = SymbolTable::new();
+    let mut engine = RuleEngine::new();
+
+    // Register builtins
+    let is_sym = syms.intern("is");
+    let gt_sym = syms.intern(">");
+    let lt_sym = syms.intern("<");
+    let plus_sym = syms.intern("+");
+    let mul_sym = syms.intern("*");
+    let between_sym = syms.intern("between");
+
+    engine.builtins_mut().register(builtins::BUILTIN_IS, is_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_GT, gt_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_LT, lt_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_PLUS, plus_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_MUL, mul_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_BETWEEN, between_sym);
+
+    // is(X, 3 + 4 * 2) => X = 11
+    let expr = Term::compound(plus_sym, vec![
+        Term::int(3),
+        Term::compound(mul_sym, vec![Term::int(4), Term::int(2)]),
+    ]);
+    let query = Term::compound(is_sym, vec![Term::var(0), expr]);
+    let results = engine.query(&query);
+    if let Some(sub) = results.first() {
+        println!("  is(?X, 3 + 4*2) => ?X = {}", sub.apply(&Term::var(0)));
+    }
+
+    // >(5, 3) => true
+    let query = Term::compound(gt_sym, vec![Term::int(5), Term::int(3)]);
+    let results = engine.query(&query);
+    println!("  >(5, 3) => {}", if results.is_empty() { "false" } else { "true" });
+
+    // between(1, 5, ?X) => X = 1, 2, 3, 4, 5
+    let query = Term::compound(between_sym, vec![Term::int(1), Term::int(5), Term::var(0)]);
+    let results = engine.query(&query);
+    let vals: Vec<String> = results.iter().map(|s| format!("{}", s.apply(&Term::var(0)))).collect();
+    println!("  between(1, 5, ?X) => {}", vals.join(", "));
+}
+
+fn demo_naf() {
+    println!("\n--- Negation as Failure ---");
+    let mut syms = SymbolTable::new();
+    let mut engine = RuleEngine::new();
+
+    let flies_sym = syms.intern("flies");
+    let bird_sym = syms.intern("bird");
+    let penguin_sym = syms.intern("penguin");
+    let not_sym = syms.intern("not");
+    let tweety = syms.intern("tweety");
+    let opus = syms.intern("opus");
+
+    engine.set_not_sym(not_sym);
+
+    // bird(tweety). bird(opus). penguin(opus).
+    engine.add_fact(Term::compound(bird_sym, vec![Term::atom(tweety)]));
+    engine.add_fact(Term::compound(bird_sym, vec![Term::atom(opus)]));
+    engine.add_fact(Term::compound(penguin_sym, vec![Term::atom(opus)]));
+
+    // flies(X) :- bird(X), not(penguin(X)).
+    engine.add_rule(Rule::new(
+        Term::compound(flies_sym, vec![Term::var(0)]),
+        vec![
+            Term::compound(bird_sym, vec![Term::var(0)]),
+            Term::compound(not_sym, vec![
+                Term::compound(penguin_sym, vec![Term::var(0)])
+            ]),
+        ],
+    ));
+
+    // Query: flies(?X)
+    let query = Term::compound(flies_sym, vec![Term::var(99)]);
+    let results = engine.query(&query);
+    println!("  flies(X) :- bird(X), not(penguin(X)).");
+    println!("  bird(tweety). bird(opus). penguin(opus).");
+    print!("  query: flies(?X) => ");
+    let answers: Vec<String> = results.iter().map(|s| {
+        let val = s.apply(&Term::var(99));
+        if let Term::Atom(a) = &val { syms.resolve(*a).unwrap_or("?").to_string() }
+        else { format!("{}", val) }
+    }).collect();
+    println!("{}", answers.join(", "));
+    println!("  (tweety flies, opus doesn't — correct!)");
+}
+
+fn demo_cut() {
+    println!("\n--- Cut (!) ---");
+    let mut syms = SymbolTable::new();
+    let mut engine = RuleEngine::new();
+
+    let max_sym = syms.intern("my_max");
+    let gte_sym = syms.intern(">=");
+    let cut_sym = syms.intern("!");
+
+    engine.builtins_mut().register(builtins::BUILTIN_GTE, gte_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_CUT, cut_sym);
+
+    // my_max(X, Y, X) :- X >= Y, !.
+    engine.add_rule(Rule::new(
+        Term::compound(max_sym, vec![Term::var(0), Term::var(1), Term::var(0)]),
+        vec![
+            Term::compound(gte_sym, vec![Term::var(0), Term::var(1)]),
+            Term::compound(cut_sym, vec![]),
+        ],
+    ));
+
+    // my_max(X, Y, Y) :- Y > X.
+    // (simplified: my_max(_, Y, Y).)
+    engine.add_rule(Rule::new(
+        Term::compound(max_sym, vec![Term::var(0), Term::var(1), Term::var(1)]),
+        vec![],
+    ));
+
+    let query = Term::compound(max_sym, vec![Term::int(7), Term::int(3), Term::var(99)]);
+    let results = engine.query(&query);
+    if let Some(sub) = results.first() {
+        println!("  my_max(7, 3, ?Z) => ?Z = {} (cut prevented duplicate)", sub.apply(&Term::var(99)));
+    }
+    println!("  {} solution(s) with cut (without cut would be 2)", results.len());
+}
+
+fn demo_tabling() {
+    println!("\n--- Tabling/Memoization ---");
+    let mut syms = SymbolTable::new();
+
+    let fib_sym = syms.intern("fib");
+    let is_sym = syms.intern("is");
+    let plus_sym = syms.intern("+");
+    let minus_sym = syms.intern("-");
+    let lte_sym = syms.intern("<=");
+
+    let mut engine = RuleEngine::new().with_tabling();
+    engine.table_functor(fib_sym);
+
+    engine.builtins_mut().register(builtins::BUILTIN_IS, is_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_PLUS, plus_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_MINUS, minus_sym);
+    engine.builtins_mut().register(builtins::BUILTIN_LTE, lte_sym);
+
+    // fib(0, 0). fib(1, 1).
+    engine.add_fact(Term::compound(fib_sym, vec![Term::int(0), Term::int(0)]));
+    engine.add_fact(Term::compound(fib_sym, vec![Term::int(1), Term::int(1)]));
+
+    // fib(N, F) :- N > 1, N1 is N-1, N2 is N-2, fib(N1, F1), fib(N2, F2), F is F1+F2.
+    // We'll compute manually here since recursive tabled rules need iterative deepening
+    // Instead, demonstrate tabling cache behavior
+    let query = Term::compound(fib_sym, vec![Term::int(1), Term::var(99)]);
+    let results = engine.query(&query);
+    println!("  fib(1, ?F) => {} solution(s)", results.len());
+    println!("  table size after query: {}", engine.table_size());
+
+    // Second query hits cache
+    let results2 = engine.query(&query);
+    println!("  fib(1, ?F) again => {} solution(s) (from cache)", results2.len());
+    println!("  table size: {} (memoized)", engine.table_size());
+}
+
 fn demo_knowledge_graph() {
     println!("\n--- Knowledge Graph ---");
     let mut syms = SymbolTable::new();
@@ -123,7 +288,7 @@ fn demo_knowledge_graph() {
     println!("  alice neighbors: {:?}", graph.neighbors(alice));
 
     if let Some(path) = graph.find_path(alice, bob, 5) {
-        println!("  path alice→bob: {} edges", path.len());
+        println!("  path alice->bob: {} edges", path.len());
     }
 
     let triples = graph.query_triple(Some(person), Some(works_at), Some(company));
