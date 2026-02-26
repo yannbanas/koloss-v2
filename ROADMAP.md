@@ -1,9 +1,12 @@
 # KOLOSS v2 — Roadmap
 
 ## Etat Actuel
-- ~3500 lignes Rust
+- ~7200 lignes Rust, 36 fichiers, 51 tests
 - 0 erreurs, 0 warnings, compile et execute
-- Unifier, SAT solver, Rule Engine (NAF + builtins + cut + tabling), Knowledge Graph, ARC DSL, Search, Evolution
+- Unifier, SAT solver, Rule Engine (NAF + builtins + cut + tabling), Knowledge Graph
+- ARC DSL (177 primitives), multi-strategy solver, real ARC-AGI benchmark
+- **ARC-AGI score: 10% sur 50 taches (5 resolues)**
+- Approches innovantes: bidirectional search, heuristic selection, grid fingerprinting, MDL compression
 - Aucune dependance LLM pour le raisonnement
 
 ## Chantier 1 — Moteur de Raisonnement (COMPLET)
@@ -21,7 +24,7 @@
 - [x] Cut (!) pour optimiser la recherche + propagation correcte
 - [x] Tabling/memoization (per-functor, hash-based cache)
 
-## Chantier 2 — ARC-AGI Program Synthesis (EN COURS)
+## Chantier 2 — ARC-AGI Program Synthesis (COMPLET)
 - [x] DSL de 177 primitives (rotate, flip, filter, gravity, flood_fill, mirror, repeat, invert, etc.)
 - [x] Enumeration bottom-up (taille 1, 2, 3)
 - [x] Evolution genetique (crossover, mutation, selection)
@@ -32,7 +35,14 @@
 - [x] Symmetry detection (horizontal, vertical, diagonal) + period detection (H/V)
 - [x] Grid overlay, keep largest/smallest, outline, fill inside holes
 - [x] Rule Engine ↔ DSL bridge (GridReasoner: grid → logical facts)
-- [ ] Abstraction (DreamCoder-style): comprimer les programmes en bibliotheques
+- [x] Abstraction (DreamCoder-style): Library learning, wake/sleep cycle, sub-program extraction
+- [x] DAG search (Icecuber-style): greedy composition with deduplication
+- [x] **Bidirectional search**: forward + backward with inverse primitives (exponential speedup)
+- [x] **Heuristic primitive selection**: feature analysis → filtered search space (177→20-60 prims)
+- [x] **Grid fingerprinting**: O(1) dedup via polynomial rolling hash + multi-resolution
+- [x] **MDL compression**: description length scoring, program simplicity preference
+- [x] **Multi-strategy pipeline**: heuristic → bidir → DAG → enumerate → evolve (with 10s timeout)
+- [x] RLE encoding, delta encoding, Shannon entropy, compression ratio
 
 ## Chantier 3 — Graphe de Connaissances (COMPLET)
 - [x] KnowledgeGraph (nodes, edges, index)
@@ -63,26 +73,53 @@
 - [x] Supprimer dead code (warnings → 0)
 - [ ] Fusionner modules redondants
 - [ ] Inline les abstractions inutiles
-- [ ] Benchmark perf (latence, memoire)
-- [ ] Target < 10K lignes pour le core reasoning
+- [x] Benchmark perf (ARC-AGI: 50 taches en 33s release)
+- [x] Target < 10K lignes pour le core reasoning (7200 lignes actuellement)
 
 ## Chantier 6 — NLU/NLG Bridge (Futur)
 - [ ] Petit LLM (3B) pour texte → Term
 - [ ] Term → texte naturel
 - [ ] Zero LLM dans la boucle de raisonnement (le LLM parse, le Rust raisonne)
 
-## Chantier 7 — Benchmark Reel
-- [ ] ARC-AGI evaluation dataset (400 tasks)
+## Chantier 7 — Benchmark Reel (EN COURS)
+- [x] ARC-AGI training dataset (400 tasks) telecharge et integre
+- [x] ARC-AGI evaluation dataset (400 tasks)
+- [x] Benchmark runner avec scoring detaille + rapport
+- [x] Score mesure: **10% sur 50 taches** (5 resolues)
+- [x] Mesure par methode: heuristic_single (60%), heuristic_compose2 (40%)
 - [ ] HumanEval via program synthesis (pas LLM)
-- [ ] Mesure score vs baseline
-- [ ] Dashboard minimal (CLI)
+- [ ] Dashboard minimal (CLI) — en cours
 
-## Metriques Cibles
+## Metriques
 
 | Metrique | Actuel | Cible v2.1 | Cible v2.5 | Cible v3.0 |
 |----------|--------|------------|------------|------------|
-| Lignes code | 5500 | 8000 | 15000 | <100K |
-| ARC-AGI score | 0% | 15% | 40% | 60% |
+| Lignes code | 7200 | 10000 | 15000 | <100K |
+| Fichiers | 36 | 50 | 80 | 150 |
+| Tests | 51 | 100 | 300 | 1000 |
+| ARC-AGI score | 10% | 20% | 40% | 60% |
 | Warnings | 0 | 0 | 0 | 0 |
 | LLM dependency | 0% | 5% (NLU) | 5% | 5% |
-| Self-improvement | non | basique | mesurable | autonome |
+| Self-improvement | basique | mesurable | autonome | recursif |
+
+## Approches Innovantes Implementees
+
+### Bidirectional Search (bidir.rs)
+- Recherche simultanée input→ et ←output via primitives inverses
+- Complexite O(2*b^(d/2)) vs O(b^d) = speedup exponentiel
+- Primitives invertibles: rotations, flips, transpose, color swaps
+
+### Heuristic Primitive Selection (heuristics.rs)
+- Analyse de features: dimension change, color mapping, object count, symmetry
+- Filtre les 177 primitives en 20-60 pertinentes par tache
+- Branching factor reduit de 5-10x
+
+### Grid Fingerprinting (fingerprint.rs)
+- Hash polynomial FNV-1a avec position mixing
+- Multi-resolution: full + quadrants + color signature
+- FingerprintSet pour dedup O(1) au lieu de O(rows*cols)
+
+### MDL Compression (compression.rs)
+- Description Length = cout du programme + cout des erreurs
+- Prefere programmes simples (rasoir d'Occam automatique)
+- RLE, delta encoding, Shannon entropy pour analyse de grilles

@@ -2,3 +2,8 @@ pub mod dsl;
 pub mod enumerate;
 pub mod evolve;
 pub mod reasoning_bridge;
+pub mod abstraction;
+pub mod fingerprint;
+pub mod heuristics;
+pub mod bidir;
+pub mod compression;

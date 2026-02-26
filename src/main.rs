@@ -20,6 +20,14 @@ fn main() {
     demo_knowledge_graph();
     demo_arc_dsl();
 
+    demo_new_synthesis();
+
+    // Run ARC-AGI benchmark if data dir exists
+    let arc_dir = "data/arc-agi/data/training";
+    if std::path::Path::new(arc_dir).exists() {
+        demo_arc_benchmark(arc_dir);
+    }
+
     println!("\n[v2] All systems operational. No LLM required.");
 }
 
@@ -355,4 +363,54 @@ fn demo_arc_dsl() {
     println!("  fill_inside hollow square: center={}", filled_inside[1][1]);
 
     println!("  {} primitives available", Prim::all_primitives().len());
+}
+
+fn demo_new_synthesis() {
+    println!("\n--- Novel Synthesis Approaches ---");
+    use koloss_v2::synthesis::dsl::Prim;
+    use koloss_v2::synthesis::heuristics::{analyze_features, select_primitives};
+    use koloss_v2::synthesis::bidir::BidirSearch;
+    use koloss_v2::synthesis::compression::{description_length, grid_entropy, compression_ratio};
+    use koloss_v2::synthesis::fingerprint::GridFingerprint;
+
+    // Demo: heuristic selection
+    let input = vec![vec![1, 2, 3], vec![4, 5, 6]];
+    let output = vec![vec![3, 2, 1], vec![6, 5, 4]]; // FlipH
+    let profile = analyze_features(&[(input.clone(), output.clone())]);
+    let selected = select_primitives(&profile);
+    let all = Prim::all_primitives();
+    println!("  heuristic: {}/{} primitives selected (dim={:?})",
+        selected.len(), all.len(), profile.dim_change);
+
+    // Demo: bidirectional search
+    let bidir = BidirSearch::new(5000);
+    let result = bidir.search(&input, &output, &selected, 4);
+    if let Some(r) = &result {
+        println!("  bidir: found! method={} fwd={} bwd={} nodes={}",
+            r.method, r.forward_depth, r.backward_depth, r.nodes_explored);
+        println!("  program verifies: {}", r.program.apply(&input) == output);
+    }
+
+    // Demo: compression metrics
+    let grid = vec![vec![1, 1, 1, 2, 2, 2], vec![1, 1, 1, 2, 2, 2]];
+    println!("  grid entropy: {:.2} bits/cell", grid_entropy(&grid));
+    println!("  compression ratio: {:.2}", compression_ratio(&grid));
+    println!("  DL(FlipH): {:.1} bits, DL(FlipH∘RotCW): {:.1} bits",
+        description_length(&Prim::FlipH),
+        description_length(&Prim::Compose(Box::new(Prim::FlipH), Box::new(Prim::RotateCW))));
+
+    // Demo: fingerprinting
+    let fp1 = GridFingerprint::compute(&input);
+    let fp2 = GridFingerprint::compute(&output);
+    println!("  fingerprint: same_shape={} same_colors={}",
+        fp1.same_shape(&fp2), fp1.same_colors(&fp2));
+}
+
+fn demo_arc_benchmark(data_dir: &str) {
+    println!("\n--- ARC-AGI Real Benchmark ---");
+    use koloss_v2::bench::runner::run_benchmark;
+
+    // Run on first 50 tasks for demo (full 400 can be run separately)
+    let report = run_benchmark(data_dir, Some(50), 3);
+    report.print_summary();
 }
