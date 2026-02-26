@@ -48,14 +48,16 @@
 - [x] Subgraph embedding (BFS radius aggregation)
 - [x] Cosine similarity + find_similar_nodes(top_k)
 
-## Chantier 4 — Auto-Amelioration
-- [x] Fitness score composite
-- [x] Mutation framework (add/remove rules, facts)
-- [x] Mutation log (track improvements/regressions)
-- [ ] Hill climbing sur le RuleEngine
-- [ ] Genetic programming du RuleEngine entier
-- [ ] Auto-compilation + test + rollback
-- [ ] Self-replication (generate son propre Cargo.toml + src/)
+## Chantier 4 — Auto-Amelioration (COMPLET)
+- [x] Fitness score composite (accuracy/size/speed/memory weighted)
+- [x] Mutation framework (add/remove/swap/duplicate rules, add/retract facts)
+- [x] Mutation log (track improvements/regressions, best_improvement)
+- [x] Hill climbing (mutate→eval loop, greedy ascent with plateau detection)
+- [x] Genetic programming (evolve population of RuleEngines, tournament selection)
+- [x] Auto-compilation (generate_rust_source, try_compile_check via rustc)
+- [x] Self-replication (generate_project: Cargo.toml + src/main.rs, write_project)
+- [x] Binary serialization (BinaryWriter/Reader: terms, symbol tables, grids)
+- [x] Grid packing (4-bit nibble packing for ARC grids, 50% compression)
 
 ## Chantier 5 — Minimisation
 - [x] Supprimer dead code (warnings → 0)
@@ -79,7 +81,7 @@
 
 | Metrique | Actuel | Cible v2.1 | Cible v2.5 | Cible v3.0 |
 |----------|--------|------------|------------|------------|
-| Lignes code | 4500 | 8000 | 15000 | <100K |
+| Lignes code | 5500 | 8000 | 15000 | <100K |
 | ARC-AGI score | 0% | 15% | 40% | 60% |
 | Warnings | 0 | 0 | 0 | 0 |
 | LLM dependency | 0% | 5% (NLU) | 5% | 5% |
