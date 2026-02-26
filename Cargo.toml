@@ -1,0 +1,16 @@
+[package]
+name = "koloss-v2"
+version = "0.1.0"
+edition = "2021"
+description = "KOLOSS v2 — Autonomous reasoning engine. No LLM for core intelligence."
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rustc-hash = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
