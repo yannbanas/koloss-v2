@@ -12,3 +12,4 @@ pub mod adaptive;
 pub mod cellular;
 pub mod partition;
 pub mod object_ops;
+pub mod connect;

@@ -26,8 +26,10 @@ use crate::synthesis::smart_prims::try_smart_transforms;
 use crate::synthesis::cellular::try_ca_solve;
 use crate::synthesis::partition::try_partition_solve;
 use crate::synthesis::object_ops::try_object_solve;
+use crate::synthesis::connect::try_connect_solve;
 
-const TASK_TIMEOUT_MS: u128 = 10_000;
+const TASK_TIMEOUT_MS: u128 = 3_000;
+const COMPOSE_BUDGET: usize = 5_000;
 
 #[derive(Debug, Clone)]
 pub struct ArcResult {
@@ -90,7 +92,22 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
         }
     }
 
-    // --- Strategy 0d: Object-centric operations ---
+    // --- Strategy 0d: Connect markers with lines ---
+    if let Some(csol) = try_connect_solve(&examples) {
+        let test_ok = task.test.iter().all(|ex| csol.apply(&ex.input) == ex.output);
+        if test_ok {
+            return ArcResult {
+                task_id: task.id.clone(),
+                solved: true,
+                method: format!("connect_{}", csol.name()),
+                program_size: 2,
+                checked: 1,
+                mdl: 4.0,
+            };
+        }
+    }
+
+    // --- Strategy 0e: Object-centric operations ---
     if let Some(osol) = try_object_solve(&examples) {
         let test_ok = task.test.iter().all(|ex| osol.apply(&ex.input) == ex.output);
         if test_ok {

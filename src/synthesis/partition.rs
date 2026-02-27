@@ -246,6 +246,11 @@ pub fn try_partition_solve(examples: &[(Grid, Grid)]) -> Option<PartitionSolutio
         return Some(sol);
     }
 
+    // 4. Try: fold at separator + overlay/compare
+    if let Some(sol) = try_fold_compare(examples) {
+        return Some(sol);
+    }
+
     None
 }
 
@@ -386,6 +391,161 @@ fn try_diff_subgrids(examples: &[(Grid, Grid)]) -> Option<PartitionSolution> {
     None
 }
 
+fn try_fold_compare(examples: &[(Grid, Grid)]) -> Option<PartitionSolution> {
+    let (input, output) = &examples[0];
+    let part = partition_grid(input)?;
+    if part.sub_grids.len() != 2 { return None; }
+
+    let a = &part.sub_grids[0];
+    let b = &part.sub_grids[1];
+
+    // Ensure same dimensions for folding
+    if a.len() != b.len() || a.is_empty() || b.is_empty() || a[0].len() != b[0].len() {
+        return None;
+    }
+    if output.len() != a.len() || output[0].len() != a[0].len() {
+        return None;
+    }
+
+    let rows = a.len();
+    let cols = a[0].len();
+
+    // Try: for each possible mark_color, check if output = "where a and b differ, mark"
+    let out_colors = super::dsl::unique_colors(output);
+    for &mark in &out_colors {
+        if mark == 0 { continue; }
+
+        // Mode A: diff(a,b) = mark, same = 0
+        let mut test_ab = vec![vec![0u8; cols]; rows];
+        for r in 0..rows {
+            for c in 0..cols {
+                if a[r][c] != b[r][c] { test_ab[r][c] = mark; }
+            }
+        }
+        if test_ab == *output {
+            let all_ok = examples[1..].iter().all(|(inp, out)| {
+                if let Some(p) = partition_grid(inp) {
+                    if p.sub_grids.len() == 2 {
+                        let (sa, sb) = (&p.sub_grids[0], &p.sub_grids[1]);
+                        if sa.len() == sb.len() && !sa.is_empty() && sa[0].len() == sb[0].len() {
+                            let rr = sa.len();
+                            let cc = sa[0].len();
+                            let mut t = vec![vec![0u8; cc]; rr];
+                            for r in 0..rr { for c in 0..cc {
+                                if sa[r][c] != sb[r][c] { t[r][c] = mark; }
+                            }}
+                            return t == *out;
+                        }
+                    }
+                }
+                false
+            });
+            if all_ok {
+                return Some(PartitionSolution {
+                    method: format!("fold_diff_c{}", mark),
+                    apply: PartitionOp::FoldDiff(mark),
+                });
+            }
+        }
+
+        // Mode B: where both non-zero and equal → mark, else 0
+        let mut test_and = vec![vec![0u8; cols]; rows];
+        for r in 0..rows {
+            for c in 0..cols {
+                if a[r][c] != 0 && b[r][c] != 0 { test_and[r][c] = mark; }
+            }
+        }
+        if test_and == *output {
+            let all_ok = examples[1..].iter().all(|(inp, out)| {
+                if let Some(p) = partition_grid(inp) {
+                    if p.sub_grids.len() == 2 {
+                        let (sa, sb) = (&p.sub_grids[0], &p.sub_grids[1]);
+                        if sa.len() == sb.len() && !sa.is_empty() && sa[0].len() == sb[0].len() {
+                            let rr = sa.len();
+                            let cc = sa[0].len();
+                            let mut t = vec![vec![0u8; cc]; rr];
+                            for r in 0..rr { for c in 0..cc {
+                                if sa[r][c] != 0 && sb[r][c] != 0 { t[r][c] = mark; }
+                            }}
+                            return t == *out;
+                        }
+                    }
+                }
+                false
+            });
+            if all_ok {
+                return Some(PartitionSolution {
+                    method: format!("fold_and_c{}", mark),
+                    apply: PartitionOp::FoldAnd(mark),
+                });
+            }
+        }
+
+        // Mode C: overlay A on B (non-zero A overwrites B)
+        let mut test_overlay = b.clone();
+        for r in 0..rows {
+            for c in 0..cols {
+                if a[r][c] != 0 { test_overlay[r][c] = a[r][c]; }
+            }
+        }
+        if test_overlay == *output {
+            let all_ok = examples[1..].iter().all(|(inp, out)| {
+                if let Some(p) = partition_grid(inp) {
+                    if p.sub_grids.len() == 2 {
+                        let (sa, sb) = (&p.sub_grids[0], &p.sub_grids[1]);
+                        if sa.len() == sb.len() && !sa.is_empty() && sa[0].len() == sb[0].len() {
+                            let mut t = sb.clone();
+                            for r in 0..sa.len() { for c in 0..sa[0].len() {
+                                if sa[r][c] != 0 { t[r][c] = sa[r][c]; }
+                            }}
+                            return t == *out;
+                        }
+                    }
+                }
+                false
+            });
+            if all_ok {
+                return Some(PartitionSolution {
+                    method: "fold_overlay_ab".into(),
+                    apply: PartitionOp::FoldOverlay(0, 1),
+                });
+            }
+        }
+
+        // Mode D: overlay B on A
+        let mut test_overlay2 = a.clone();
+        for r in 0..rows {
+            for c in 0..cols {
+                if b[r][c] != 0 { test_overlay2[r][c] = b[r][c]; }
+            }
+        }
+        if test_overlay2 == *output {
+            let all_ok = examples[1..].iter().all(|(inp, out)| {
+                if let Some(p) = partition_grid(inp) {
+                    if p.sub_grids.len() == 2 {
+                        let (sa, sb) = (&p.sub_grids[0], &p.sub_grids[1]);
+                        if sa.len() == sb.len() && !sa.is_empty() && sa[0].len() == sb[0].len() {
+                            let mut t = sa.clone();
+                            for r in 0..sb.len() { for c in 0..sb[0].len() {
+                                if sb[r][c] != 0 { t[r][c] = sb[r][c]; }
+                            }}
+                            return t == *out;
+                        }
+                    }
+                }
+                false
+            });
+            if all_ok {
+                return Some(PartitionSolution {
+                    method: "fold_overlay_ba".into(),
+                    apply: PartitionOp::FoldOverlay(1, 0),
+                });
+            }
+        }
+    }
+    None
+}
+
 #[derive(Debug, Clone)]
 pub struct PartitionSolution {
     pub method: String,
@@ -399,6 +559,9 @@ pub enum PartitionOp {
     SelectUniquePattern,
     Combine(usize, usize, String),
     Diff(usize, usize, u8),
+    FoldDiff(u8),
+    FoldAnd(u8),
+    FoldOverlay(usize, usize), // (base_idx, top_idx)
 }
 
 impl PartitionSolution {
@@ -431,6 +594,48 @@ impl PartitionSolution {
                 if let (Some(a), Some(b)) = (part.sub_grids.get(*i), part.sub_grids.get(*j)) {
                     diff_grids(a, b, *mark)
                 } else { grid.clone() }
+            }
+            PartitionOp::FoldDiff(mark) => {
+                if part.sub_grids.len() == 2 {
+                    let (a, b) = (&part.sub_grids[0], &part.sub_grids[1]);
+                    if a.len() == b.len() && !a.is_empty() && a[0].len() == b[0].len() {
+                        let rows = a.len();
+                        let cols = a[0].len();
+                        let mut t = vec![vec![0u8; cols]; rows];
+                        for r in 0..rows { for c in 0..cols {
+                            if a[r][c] != b[r][c] { t[r][c] = *mark; }
+                        }}
+                        return t;
+                    }
+                }
+                grid.clone()
+            }
+            PartitionOp::FoldAnd(mark) => {
+                if part.sub_grids.len() == 2 {
+                    let (a, b) = (&part.sub_grids[0], &part.sub_grids[1]);
+                    if a.len() == b.len() && !a.is_empty() && a[0].len() == b[0].len() {
+                        let rows = a.len();
+                        let cols = a[0].len();
+                        let mut t = vec![vec![0u8; cols]; rows];
+                        for r in 0..rows { for c in 0..cols {
+                            if a[r][c] != 0 && b[r][c] != 0 { t[r][c] = *mark; }
+                        }}
+                        return t;
+                    }
+                }
+                grid.clone()
+            }
+            PartitionOp::FoldOverlay(base, top) => {
+                if let (Some(base_g), Some(top_g)) = (part.sub_grids.get(*base), part.sub_grids.get(*top)) {
+                    if base_g.len() == top_g.len() && !base_g.is_empty() && base_g[0].len() == top_g[0].len() {
+                        let mut t = base_g.clone();
+                        for r in 0..top_g.len() { for c in 0..top_g[0].len() {
+                            if top_g[r][c] != 0 { t[r][c] = top_g[r][c]; }
+                        }}
+                        return t;
+                    }
+                }
+                grid.clone()
             }
         }
     }

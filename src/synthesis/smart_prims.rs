@@ -259,6 +259,16 @@ pub fn try_smart_transforms(examples: &[(Grid, Grid)]) -> Option<SmartTransform>
         }
     }
 
+    // 7. Try periodic pattern repair (fill 0-holes in tiled grid)
+    if let Some((pr, pc)) = detect_damaged_period(&examples[0].0, &examples[0].1) {
+        let all_match = examples.iter().all(|(i, o)| {
+            repair_period(i, pr, pc) == *o
+        });
+        if all_match {
+            return Some(SmartTransform::RepairPeriod(pr, pc));
+        }
+    }
+
     None
 }
 
@@ -270,6 +280,7 @@ pub enum SmartTransform {
     Subgrid(usize, usize, usize, usize),
     DedupRows,
     DedupCols,
+    RepairPeriod(usize, usize), // (period_r, period_c)
 }
 
 impl SmartTransform {
@@ -281,6 +292,7 @@ impl SmartTransform {
             SmartTransform::Subgrid(r, c, h, w) => extract_subgrid(grid, *r, *c, *h, *w),
             SmartTransform::DedupRows => dedup_rows(grid),
             SmartTransform::DedupCols => dedup_cols(grid),
+            SmartTransform::RepairPeriod(pr, pc) => repair_period(grid, *pr, *pc),
         }
     }
 
@@ -292,8 +304,89 @@ impl SmartTransform {
             SmartTransform::Subgrid(_, _, _, _) => "subgrid",
             SmartTransform::DedupRows => "dedup_rows",
             SmartTransform::DedupCols => "dedup_cols",
+            SmartTransform::RepairPeriod(_, _) => "repair_period",
         }
     }
+}
+
+// --- Periodic pattern repair ---
+
+pub fn detect_damaged_period(input: &Grid, output: &Grid) -> Option<(usize, usize)> {
+    if input.len() != output.len() || input.is_empty() || input[0].len() != output[0].len() {
+        return None;
+    }
+    let rows = input.len();
+    let cols = input[0].len();
+
+    // The output should be a perfectly periodic grid
+    // The input should be the same but with some 0-holes
+    // Try different period sizes
+    for pr in 1..=rows / 2 {
+        if rows % pr != 0 { continue; }
+        for pc in 1..=cols / 2 {
+            if cols % pc != 0 { continue; }
+            // Check if output is periodic with this period
+            let output_periodic = (0..rows).all(|r| {
+                (0..cols).all(|c| output[r][c] == output[r % pr][c % pc])
+            });
+            if !output_periodic { continue; }
+
+            // Check if input matches output except where input has 0
+            let input_consistent = (0..rows).all(|r| {
+                (0..cols).all(|c| input[r][c] == 0 || input[r][c] == output[r][c])
+            });
+            if !input_consistent { continue; }
+
+            // Must have at least some damage (0s that get filled)
+            let has_damage = (0..rows).any(|r| {
+                (0..cols).any(|c| input[r][c] == 0 && output[r][c] != 0)
+            });
+            if has_damage {
+                return Some((pr, pc));
+            }
+        }
+    }
+    None
+}
+
+pub fn repair_period(grid: &Grid, pr: usize, pc: usize) -> Grid {
+    if grid.is_empty() || pr == 0 || pc == 0 { return grid.clone(); }
+    let rows = grid.len();
+    let cols = grid[0].len();
+
+    // Build tile by majority vote across all period positions
+    let mut tile = vec![vec![0u8; pc]; pr];
+    for tr in 0..pr {
+        for tc in 0..pc {
+            let mut counts = [0u32; 10];
+            let mut r = tr;
+            while r < rows {
+                let mut c = tc;
+                while c < cols {
+                    let v = grid[r][c] as usize;
+                    if v > 0 && v < 10 { counts[v] += 1; }
+                    c += pc;
+                }
+                r += pr;
+            }
+            // Pick most common non-zero color
+            tile[tr][tc] = counts.iter().enumerate()
+                .skip(1) // skip color 0
+                .max_by_key(|(_, &cnt)| cnt)
+                .filter(|(_, &cnt)| cnt > 0)
+                .map(|(i, _)| i as u8)
+                .unwrap_or(0);
+        }
+    }
+
+    // Apply tile to fill all cells
+    let mut result = vec![vec![0u8; cols]; rows];
+    for r in 0..rows {
+        for c in 0..cols {
+            result[r][c] = tile[r % pr][c % pc];
+        }
+    }
+    result
 }
 
 #[cfg(test)]
