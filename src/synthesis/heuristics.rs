@@ -153,6 +153,16 @@ pub fn select_primitives(profile: &FeatureProfile) -> Vec<Prim> {
             prims.push(Prim::SortColsByColor);
             prims.push(Prim::KeepLargestObject);
             prims.push(Prim::KeepSmallestObject);
+            prims.push(Prim::ExtendHLines);
+            prims.push(Prim::ExtendVLines);
+            prims.push(Prim::ExtendCross);
+            prims.push(Prim::DiagFillTL);
+            prims.push(Prim::DiagFillTR);
+            // Translations
+            for d in [-2i32, -1, 1, 2] {
+                prims.push(Prim::Translate(d, 0));
+                prims.push(Prim::Translate(0, d));
+            }
 
             // Color ops (only relevant colors)
             add_color_ops(&mut prims, &profile.input_colors, &profile.output_colors);
@@ -175,9 +185,9 @@ pub fn select_primitives(profile: &FeatureProfile) -> Vec<Prim> {
             prims.push(Prim::MirrorV);
         }
         DimChange::Cropped => {
-            // Likely need Crop, ExtractObject, KeepLargest
             prims.push(Prim::KeepLargestObject);
             prims.push(Prim::KeepSmallestObject);
+            prims.push(Prim::CropToBBox);
             for i in 0..5 {
                 prims.push(Prim::ExtractObject(i));
             }
@@ -257,6 +267,9 @@ pub fn select_primitives(profile: &FeatureProfile) -> Vec<Prim> {
                     prims.push(Prim::OutlineObjects(c));
                     prims.push(Prim::FillInsideObjects(c));
                 }
+            }
+            for &c in &profile.input_colors {
+                prims.push(Prim::FillEnclosed(c));
             }
         }
         _ => {}

@@ -42,16 +42,22 @@ pub fn description_length(program: &Prim) -> f64 {
 
         // Parameterized transforms: op cost + param cost
         Prim::FillColor(_) | Prim::FilterColor(_)
-        | Prim::RemoveColor(_) | Prim::BorderFill(_) => 4.0 + 3.3, // ~log2(10)
+        | Prim::RemoveColor(_) | Prim::BorderFill(_)
+        | Prim::FillEnclosed(_) => 4.0 + 3.3,
 
-        Prim::ReplaceColor(_, _) => 4.0 + 6.6, // 2 color params
+        Prim::ReplaceColor(_, _) => 4.0 + 6.6,
         Prim::OutlineObjects(_) | Prim::FillInsideObjects(_) => 4.0 + 3.3,
 
-        Prim::Crop(_, _, _, _) => 4.0 + 12.0, // 4 params
+        Prim::Crop(_, _, _, _) => 4.0 + 12.0,
         Prim::Pad(_, _) => 4.0 + 6.0,
-        Prim::Scale(_) | Prim::RepeatH(_) | Prim::RepeatV(_) => 4.0 + 2.0,
+        Prim::Scale(_) | Prim::RepeatH(_) | Prim::RepeatV(_)
+        | Prim::UpscaleObjects(_) => 4.0 + 2.0,
         Prim::FloodFill(_, _, _) => 4.0 + 9.0,
         Prim::ExtractObject(_) => 4.0 + 3.0,
+        Prim::Translate(_, _) => 4.0 + 4.0,
+
+        Prim::CropToBBox | Prim::ExtendHLines | Prim::ExtendVLines
+        | Prim::ExtendCross | Prim::DiagFillTL | Prim::DiagFillTR => 4.0,
     }
 }
 

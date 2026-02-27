@@ -407,15 +407,16 @@ fn demo_new_synthesis() {
 }
 
 fn demo_arc_benchmark(data_dir: &str) {
-    println!("\n--- ARC-AGI Real Benchmark ---");
+    println!("\n--- ARC-AGI Real Benchmark (ALL 400 tasks) ---");
     use koloss_v2::bench::runner::run_benchmark;
 
-    // Run on first 100 tasks
-    let report = run_benchmark(data_dir, Some(100), 3);
+    let report = run_benchmark(data_dir, None, 3);
     report.print_summary();
+    println!("\nSolved tasks:");
     for t in &report.per_task {
         if t.solved {
-            println!("  [OK] {} method={} time={}ms", t.task_id, t.method, t.elapsed_ms);
+            println!("  [OK] {} method={} size={} mdl={:.1} time={}ms",
+                t.task_id, t.method, t.program_size, t.mdl, t.elapsed_ms);
         }
     }
 }

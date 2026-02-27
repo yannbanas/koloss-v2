@@ -10,3 +10,5 @@ pub mod compression;
 pub mod smart_prims;
 pub mod adaptive;
 pub mod cellular;
+pub mod partition;
+pub mod object_ops;

@@ -80,6 +80,16 @@ pub enum Prim {
     KeepSmallestObject,
     OutlineObjects(u8),
     FillInsideObjects(u8),
+    // New: translate, crop-to-bbox, line extension, diagonal
+    Translate(i32, i32),         // shift non-zero cells by (dr, dc)
+    CropToBBox,                  // tight crop around non-zero cells
+    ExtendHLines,                // extend each non-zero pixel into full row
+    ExtendVLines,                // extend each non-zero pixel into full column
+    ExtendCross,                 // extend each non-zero pixel into full row + column
+    DiagFillTL,                  // fill diagonal stripes top-left
+    DiagFillTR,                  // fill diagonal stripes top-right
+    FillEnclosed(u8),            // fill regions enclosed by a specific wall color
+    UpscaleObjects(usize),       // upscale each object to fill its bounding box × factor
     Compose(Box<Prim>, Box<Prim>),
     Conditional(Box<Prim>, Box<Prim>, Box<Prim>),
 }
@@ -121,6 +131,15 @@ impl Prim {
             Prim::KeepSmallestObject => keep_smallest_object(grid),
             Prim::OutlineObjects(c) => outline_objects(grid, *c),
             Prim::FillInsideObjects(c) => fill_inside_objects(grid, *c),
+            Prim::Translate(dr, dc) => translate(grid, *dr, *dc),
+            Prim::CropToBBox => crop_to_bbox(grid),
+            Prim::ExtendHLines => extend_h_lines(grid),
+            Prim::ExtendVLines => extend_v_lines(grid),
+            Prim::ExtendCross => extend_cross(grid),
+            Prim::DiagFillTL => diag_fill_tl(grid),
+            Prim::DiagFillTR => diag_fill_tr(grid),
+            Prim::FillEnclosed(wall) => fill_enclosed(grid, *wall),
+            Prim::UpscaleObjects(f) => upscale_objects(grid, *f),
             Prim::Compose(a, b) => b.apply(&a.apply(grid)),
             Prim::Conditional(cond, then_p, else_p) => {
                 let result = cond.apply(grid);
@@ -145,6 +164,8 @@ impl Prim {
             Prim::MirrorH, Prim::MirrorV,
             Prim::Invert, Prim::SortRowsByColor, Prim::SortColsByColor,
             Prim::KeepLargestObject, Prim::KeepSmallestObject,
+            Prim::CropToBBox, Prim::ExtendHLines, Prim::ExtendVLines, Prim::ExtendCross,
+            Prim::DiagFillTL, Prim::DiagFillTR,
         ];
         for c in 0..=9 {
             prims.push(Prim::FillColor(c));
@@ -153,6 +174,7 @@ impl Prim {
             prims.push(Prim::RemoveColor(c));
             prims.push(Prim::OutlineObjects(c));
             prims.push(Prim::FillInsideObjects(c));
+            prims.push(Prim::FillEnclosed(c));
             for c2 in 0..=9 {
                 if c != c2 {
                     prims.push(Prim::ReplaceColor(c, c2));
@@ -163,6 +185,12 @@ impl Prim {
             prims.push(Prim::Scale(s));
             prims.push(Prim::RepeatH(s));
             prims.push(Prim::RepeatV(s));
+            prims.push(Prim::UpscaleObjects(s));
+        }
+        // Translation offsets: common shifts ±1..3
+        for d in [-3i32, -2, -1, 1, 2, 3] {
+            prims.push(Prim::Translate(d, 0));
+            prims.push(Prim::Translate(0, d));
         }
         prims
     }
@@ -610,6 +638,216 @@ fn outline_objects(g: &Grid, outline_color: u8) -> Grid {
                         || g[nr as usize][nc as usize] == 0
                 });
                 if on_border { result[r][c] = outline_color; }
+            }
+        }
+    }
+    result
+}
+
+fn translate(g: &Grid, dr: i32, dc: i32) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = vec![vec![0u8; cols]; rows];
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                let nr = r as i32 + dr;
+                let nc = c as i32 + dc;
+                if nr >= 0 && (nr as usize) < rows && nc >= 0 && (nc as usize) < cols {
+                    result[nr as usize][nc as usize] = g[r][c];
+                }
+            }
+        }
+    }
+    result
+}
+
+fn crop_to_bbox(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut min_r = rows;
+    let mut max_r = 0;
+    let mut min_c = cols;
+    let mut max_c = 0;
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                min_r = min_r.min(r);
+                max_r = max_r.max(r);
+                min_c = min_c.min(c);
+                max_c = max_c.max(c);
+            }
+        }
+    }
+    if min_r > max_r { return vec![vec![0]]; }
+    crop(g, min_r, min_c, max_r - min_r + 1, max_c - min_c + 1)
+}
+
+fn extend_h_lines(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = vec![vec![0u8; cols]; rows];
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                for cc in 0..cols { result[r][cc] = g[r][c]; }
+            }
+        }
+    }
+    result
+}
+
+fn extend_v_lines(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = vec![vec![0u8; cols]; rows];
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                for rr in 0..rows { result[rr][c] = g[r][c]; }
+            }
+        }
+    }
+    result
+}
+
+fn extend_cross(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = g.clone();
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                for cc in 0..cols {
+                    if result[r][cc] == 0 { result[r][cc] = g[r][c]; }
+                }
+                for rr in 0..rows {
+                    if result[rr][c] == 0 { result[rr][c] = g[r][c]; }
+                }
+            }
+        }
+    }
+    result
+}
+
+fn diag_fill_tl(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = g.clone();
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                let color = g[r][c];
+                let mut nr = r as i32 + 1;
+                let mut nc = c as i32 + 1;
+                while nr < rows as i32 && nc < cols as i32 {
+                    if result[nr as usize][nc as usize] == 0 {
+                        result[nr as usize][nc as usize] = color;
+                    }
+                    nr += 1; nc += 1;
+                }
+                let mut nr = r as i32 - 1;
+                let mut nc = c as i32 - 1;
+                while nr >= 0 && nc >= 0 {
+                    if result[nr as usize][nc as usize] == 0 {
+                        result[nr as usize][nc as usize] = color;
+                    }
+                    nr -= 1; nc -= 1;
+                }
+            }
+        }
+    }
+    result
+}
+
+fn diag_fill_tr(g: &Grid) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = g.clone();
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                let color = g[r][c];
+                let mut nr = r as i32 + 1;
+                let mut nc = c as i32 - 1;
+                while nr < rows as i32 && nc >= 0 {
+                    if result[nr as usize][nc as usize] == 0 {
+                        result[nr as usize][nc as usize] = color;
+                    }
+                    nr += 1; nc -= 1;
+                }
+                let mut nr = r as i32 - 1;
+                let mut nc = c as i32 + 1;
+                while nr >= 0 && nc < cols as i32 {
+                    if result[nr as usize][nc as usize] == 0 {
+                        result[nr as usize][nc as usize] = color;
+                    }
+                    nr -= 1; nc += 1;
+                }
+            }
+        }
+    }
+    result
+}
+
+fn fill_enclosed(g: &Grid, wall_color: u8) -> Grid {
+    if g.is_empty() { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = g.clone();
+    let mut reachable = vec![vec![false; cols]; rows];
+    let mut stack: Vec<(usize, usize)> = Vec::new();
+    for r in 0..rows {
+        for c in 0..cols {
+            if (r == 0 || r == rows - 1 || c == 0 || c == cols - 1) && g[r][c] != wall_color {
+                reachable[r][c] = true;
+                stack.push((r, c));
+            }
+        }
+    }
+    while let Some((r, c)) = stack.pop() {
+        for (dr, dc) in &[(0i32, 1i32), (0, -1), (1, 0), (-1, 0)] {
+            let nr = r as i32 + dr;
+            let nc = c as i32 + dc;
+            if nr >= 0 && nr < rows as i32 && nc >= 0 && nc < cols as i32 {
+                let (nr, nc) = (nr as usize, nc as usize);
+                if !reachable[nr][nc] && g[nr][nc] != wall_color {
+                    reachable[nr][nc] = true;
+                    stack.push((nr, nc));
+                }
+            }
+        }
+    }
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] == 0 && !reachable[r][c] {
+                result[r][c] = wall_color;
+            }
+        }
+    }
+    result
+}
+
+fn upscale_objects(g: &Grid, factor: usize) -> Grid {
+    if g.is_empty() || factor == 0 { return g.clone(); }
+    let rows = g.len();
+    let cols = g[0].len();
+    let mut result = vec![vec![0u8; cols * factor]; rows * factor];
+    for r in 0..rows {
+        for c in 0..cols {
+            if g[r][c] != 0 {
+                for dr in 0..factor {
+                    for dc in 0..factor {
+                        result[r * factor + dr][c * factor + dc] = g[r][c];
+                    }
+                }
             }
         }
     }

@@ -1,11 +1,15 @@
 // ARC-AGI benchmark: multi-strategy solver pipeline.
 //
 // Strategy cascade (fastest → slowest):
-// 1. Heuristic enumeration: analyze features → filter primitives → enumerate
-// 2. Bidirectional DAG search: forward + backward with inverse primitives
-// 3. DAG search with library: wake-sleep learned abstractions
-// 4. Full brute-force enumeration
-// 5. Genetic evolution: crossover/mutation on populations
+// 0.  Smart/learned transforms (color map, tiling, subgrid, dedup)
+// 0b. Cellular Automaton rule learning
+// 0c. Grid partition + sub-grid operations (split/select/combine)
+// 0d. Object-centric operations (stamp patterns, bbox, markers)
+// 1.  Heuristic-filtered enumeration (1-step, 2-step compose)
+// 2.  Bidirectional DAG search (forward + backward with inverse prims)
+// 3.  DAG search with library (wake-sleep learned abstractions)
+// 4.  Full brute-force enumeration
+// 5.  Genetic evolution (crossover/mutation)
 //
 // Each strategy has a time/node budget. If one fails, cascade to next.
 
@@ -20,8 +24,10 @@ use crate::synthesis::abstraction::SearchDag;
 use crate::synthesis::compression::mdl_score;
 use crate::synthesis::smart_prims::try_smart_transforms;
 use crate::synthesis::cellular::try_ca_solve;
+use crate::synthesis::partition::try_partition_solve;
+use crate::synthesis::object_ops::try_object_solve;
 
-const TASK_TIMEOUT_MS: u128 = 10_000; // 10 seconds max per task
+const TASK_TIMEOUT_MS: u128 = 10_000;
 
 #[derive(Debug, Clone)]
 pub struct ArcResult {
@@ -41,7 +47,6 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
 
     // --- Strategy 0: Smart/learned transforms (instant) ---
     if let Some(smart) = try_smart_transforms(&examples) {
-        // Verify on test set
         let test_ok = task.test.iter().all(|ex| smart.apply(&ex.input) == ex.output);
         if test_ok {
             return ArcResult {
@@ -50,7 +55,7 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
                 method: format!("smart_{}", smart.name()),
                 program_size: 1,
                 checked: 1,
-                mdl: 2.0, // Smart transforms are very concise
+                mdl: 2.0,
             };
         }
     }
@@ -70,11 +75,41 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
         }
     }
 
-    // --- Strategy 1: Heuristic-filtered enumeration (fastest) ---
+    // --- Strategy 0c: Grid partition operations ---
+    if let Some(psol) = try_partition_solve(&examples) {
+        let test_ok = task.test.iter().all(|ex| psol.apply(&ex.input) == ex.output);
+        if test_ok {
+            return ArcResult {
+                task_id: task.id.clone(),
+                solved: true,
+                method: format!("partition_{}", psol.method),
+                program_size: 2,
+                checked: 1,
+                mdl: 4.0,
+            };
+        }
+    }
+
+    // --- Strategy 0d: Object-centric operations ---
+    if let Some(osol) = try_object_solve(&examples) {
+        let test_ok = task.test.iter().all(|ex| osol.apply(&ex.input) == ex.output);
+        if test_ok {
+            return ArcResult {
+                task_id: task.id.clone(),
+                solved: true,
+                method: format!("object_{}", osol.name()),
+                program_size: 2,
+                checked: 1,
+                mdl: 4.0,
+            };
+        }
+    }
+
+    // --- Strategy 1: Heuristic-filtered enumeration ---
     let profile = analyze_features(&examples);
     let heuristic_prims = select_primitives(&profile);
 
-    // 1a. Single-step with heuristic-selected primitives
+    // 1a. Single-step
     for p in &heuristic_prims {
         if matches_all(p, &examples) && validates(p, task) {
             let mdl = mdl_score(p, &examples);
@@ -89,7 +124,7 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
         }
     }
 
-    // 1b. Heuristic 2-step compositions
+    // 1b. 2-step compositions
     let mut checked = heuristic_prims.len();
     'compose: for a in &heuristic_prims {
         for b in &heuristic_prims {
@@ -156,7 +191,7 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
         return unsolved(task, checked);
     }
 
-    // --- Strategy 4: Full brute-force enumeration (with reduced budget) ---
+    // --- Strategy 4: Full brute-force enumeration ---
     if let Some(result) = synthesize(&examples, max_size.min(2)) {
         if validates(&result.program, task) {
             let mdl = mdl_score(&result.program, &examples);
@@ -175,7 +210,7 @@ pub fn solve_arc_task(task: &ArcTask, max_size: usize) -> ArcResult {
         return unsolved(task, checked);
     }
 
-    // --- Strategy 5: Genetic evolution (reduced budget) ---
+    // --- Strategy 5: Genetic evolution ---
     if let Some(individual) = evolve(&examples, 30, 50) {
         if validates(&individual.program, task) {
             let mdl = mdl_score(&individual.program, &examples);
